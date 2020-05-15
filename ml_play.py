@@ -54,6 +54,7 @@ def ml_loop(side: str):
             # feature.append(scene_info["ball_speed"][i])
             feature.append(scene_info["platform_1P"][i])
             feature.append(scene_info["blocker"][i])
+            feature.append(scene_info["platform_2P"][i])
         feature.append(feature[0] - s[0])
         feature.append(feature[1] - s[1])
         feature.append(get_direction(feature[0], feature[1], s[0], s[1]))
@@ -81,9 +82,9 @@ def ml_loop(side: str):
             ball_served = True
         else:
             y = clf.predict(feature)
-            if scene_info["platform_1P"][0]+20 > (pred-10) and scene_info["platform_1P"][0]+20 < (pred+10):
+            if scene_info["platform_1P"][0]+20 > (y-10) and scene_info["platform_1P"][0]+20 < (y+10):
                 move = 0  # NONE
-            elif scene_info["platform_1P"][0]+20 <= (pred-10):
+            elif scene_info["platform_1P"][0]+20 <= (y-10):
                 move = 1  # goes right
             else:
                 move = 2  # goes left
