@@ -19,10 +19,10 @@ def ml_loop(side: str):
     # === Here is the execution order of the loop === #
     # 1. Put the initialization code here.
     ball_served = False
-    '''filename = path.join(path.dirname(__file__),
+    filename = path.join(path.dirname(__file__),
                          "random_forest.pickle")
     with open(filename, 'rb') as file:
-        clf = pickle.load(file)'''
+        clf = pickle.load(file)
     # 2. Inform the game process that ml process is ready before start the loop.
     comm.ml_ready()
 
@@ -81,7 +81,7 @@ def ml_loop(side: str):
                 {"frame": scene_info["frame"], "command": "SERVE_TO_RIGHT"})
             ball_served = True
         else:
-            if scene_info["ball_speed"][1] > 0:  # 球正在向下 # ball goes down
+            '''if scene_info["ball_speed"][1] > 0:  # 球正在向下 # ball goes down
                 # 幾個frame以後會需要接  # x means how many frames before catch the ball
                 x = (scene_info["platform_1P"][1]-scene_info["ball"]
                      [1]) // scene_info["ball_speed"][1]
@@ -101,7 +101,8 @@ def ml_loop(side: str):
                         pred = pred + (abs(bound)*200)
                 command = int(pred/40)
             else:  # 球正在向上 # ball goes up
-                command = int(2)
+                command = int(2)'''
+            command = clf.predict(feature)
             if scene_info["platform_1P"][0] + 20 > (20 + 40 * command):
                 comm.send_to_game(
                     {"frame": scene_info["frame"], "command": "MOVE_LEFT"})
