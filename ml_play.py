@@ -19,10 +19,10 @@ def ml_loop(side: str):
     # === Here is the execution order of the loop === #
     # 1. Put the initialization code here.
     ball_served = False
-    filename = path.join(path.dirname(__file__),
+    '''filename = path.join(path.dirname(__file__),
                          "random_forest.pickle")
     with open(filename, 'rb') as file:
-        clf = pickle.load(file)
+        clf = pickle.load(file)'''
     # 2. Inform the game process that ml process is ready before start the loop.
     comm.ml_ready()
 
