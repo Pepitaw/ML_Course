@@ -4,7 +4,7 @@ from mlgame.communication import ml as comm
 import os.path as path
 
 # cd C:\Users\user\Desktop\課程\大二下\基於遊戲的機器學習\MLGame-master
-# python MLGame.py -i ml_play.py pingpong HARD 10
+# python MLGame.py -i ml_play.py pingpong HARD 2
 
 
 # 'frame': 10, 'status': 'GAME_ALIVE', 'ball': (35, 143), 'ball_speed': (-7, 7), 'platform_1P': (35,420), 'platform_2P': (35, 50),
@@ -46,8 +46,8 @@ def ml_loop(side: str):
     while True:
         # 3.1. Receive the scene information sent from the game process.
         scene_info = comm.recv_from_game()
-        #Data = [Commands, Balls, Ball_speed, PlatformPos, Blocker, vectors, direction]
-        #Feature = [Balls, Ball_speed, PlatformPos, Blocker, direction]
+        # Data = [Commands, Balls, Ball_speed, PlatformPos, Blocker, vectors, direction]
+        # Feature = [Balls, Ball_speed, PlatformPos, Blocker, direction]
         feature = []
         for i in range(0, 2):
             # feature.append(scene_info["ball"][i])
@@ -78,22 +78,36 @@ def ml_loop(side: str):
         # 3.4. Send the instruction for this frame to the game process
         if not ball_served:
             comm.send_to_game(
-                {"frame": scene_info["frame"], "command": "SERVE_TO_LEFT"})
+                {"frame": scene_info["frame"], "command": "SERVE_TO_RIGHT"})
             ball_served = True
         else:
-            y = clf.predict(feature)
-            if scene_info["platform_1P"][0]+20 > (y-10) and scene_info["platform_1P"][0]+20 < (y+10):
-                move = 0  # NONE
-            elif scene_info["platform_1P"][0]+20 <= (y-10):
-                move = 1  # goes right
-            else:
-                move = 2  # goes left
-            if move == 0:
+            if scene_info["ball_speed"][1] > 0:  # 球正在向下 # ball goes down
+                # 幾個frame以後會需要接  # x means how many frames before catch the ball
+                x = (scene_info["platform_1P"][1]-scene_info["ball"]
+                     [1]) // scene_info["ball_speed"][1]
+                # 預測最終位置 # pred means predict ball landing site
+                pred = scene_info["ball"][0] + \
+                    (scene_info["ball_speed"][0]*x)
+                bound = pred // 200  # Determine if it is beyond the boundary
+                if (bound > 0):  # pred > 200 # fix landing position
+                    if (bound % 2 == 0):
+                        pred = pred - bound*200
+                    else:
+                        pred = 200 - (pred - 200*bound)
+                elif (bound < 0):  # pred < 0
+                    if (bound % 2 == 1):
+                        pred = abs(pred - (bound+1) * 200)
+                    else:
+                        pred = pred + (abs(bound)*200)
+                command = int(pred/40)
+            else:  # 球正在向上 # ball goes up
+                command = int(2)
+            if scene_info["platform_1P"][0] + 20 > (20 + 40 * command):
                 comm.send_to_game(
-                    {"frame": scene_info["frame"], "command": "NONE"})
-            elif move == 1:
+                    {"frame": scene_info["frame"], "command": "MOVE_LEFT"})
+            elif scene_info["platform_1P"][0] + 20 < (20 + 40 * command):
                 comm.send_to_game(
                     {"frame": scene_info["frame"], "command": "MOVE_RIGHT"})
             else:
                 comm.send_to_game(
-                    {"frame": scene_info["frame"], "command": "MOVE_LEFT"})
+                    {"frame": scene_info["frame"], "command": "NONE"})
