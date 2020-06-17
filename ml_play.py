@@ -1,95 +1,119 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jun  9 04:31:09 2020
+
+@author: Dining
+"""
 import pickle
 import numpy as np
-from mlgame.communication import ml as comm
-import os.path as path
+from os import path
+import os 
 
-# cd C:\Users\user\Desktop\課程\大二下\基於遊戲的機器學習\MLGame-master
-# python MLGame.py -i Data.py pingpong HARD 10
+class MLPlay:
+    def __init__(self, player):
+        self.player = player
+        if self.player == "player1":
+            self.player_no = 0
+        elif self.player == "player2":
+            self.player_no = 1
+        elif self.player == "player3":
+            self.player_no = 2
+        elif self.player == "player4":
+            self.player_no = 3
+        self.car_vel = 0 #initialization
+        self.car_pos = (0,0)
+        self.feature = [0,0,0,0,0,0,0,0,0]
+        
+        with open(path.join(path.dirname(__file__), 'save', 'mlpmodel.pickle'), 'rb') as file: self.model = pickle.load(file)
+        pass
+    
+    def update(self, scene_info):
+        """
+        Generate the command according to the received scene information
+        """
+        def check_grid():
+            self.car_pos = scene_info[self.player]
+            if scene_info["status"] != "ALIVE":
+                return "RESET"
+        
+            if len(self.car_pos) == 0:
+                self.car_pos = (0,0)
 
+            grid = set()
+            for i in range(len(scene_info["cars_info"])): # for all cars information in scene of one frame
+                car = scene_info["cars_info"][i]
+                if car["id"]==self.player_no: #player's car information
+                    self.car_vel = car["velocity"] 
+                else: # computer's cars information
+                    if self.car_pos[0] <= 65: # left bound 
+                        grid.add(1)
+                        grid.add(4)
+                        grid.add(7)
+                    elif self.car_pos[0] >= 565: # right bound
+                        grid.add(3)
+                        grid.add(6)
+                        grid.add(9)
 
-# 'frame': 10, 'status': 'GAME_ALIVE', 'ball': (35, 143), 'ball_speed': (-7, 7), 'platform_1P': (35,420), 'platform_2P': (35, 50),
-# 'blocker': (110, 240), 'command_1P': 'MOVE_LEFT', 'command_2P': 'MOVE_LEFT'}
-# Data = [Commands, Balls, Ball_speed, PlatformPos, Blocker, vectors, direction]
+                    x = self.car_pos[0] - car["pos"][0] # x relative position
+                    y = self.car_pos[1] - car["pos"][1] # y relative position
 
-#...............Start the game...............#
+                    if x <= 40 and x >= -40 :      
+                        if y > 0 and y < 300:
+                            grid.add(2)
+                            if y < 200:
+                                grid.add(5) 
+                        elif y < 0 and y > -200:
+                            grid.add(8)
+                    if x > -100 and x < -40 :
+                        if y > 80 and y < 250:
+                            grid.add(3)
+                        elif y < -80 and y > -200:
+                            grid.add(9)
+                        elif y < 80 and y > -80:
+                            grid.add(6)
+                    if x < 100 and x > 40:
+                        if y > 80 and y < 250:
+                            grid.add(1)
+                        elif y < -80 and y > -200:
+                            grid.add(7)
+                        elif y < 80 and y > -80:
+                            grid.add(4)
+#            print(grid)
+            return move(grid = grid)
+        
+        def move(grid):
 
+            grid_tolist = list(grid)
+            grid_data = [0,0,0,0,0,0,0,0,0]
+            for i in grid_tolist:
+                grid_data[i-1] = 1 # change grid set into feature's data shape
+            grid_data = np.array(grid_data).reshape(1,-1)
+            self.feature = grid_data
+            self.feature = np.array(self.feature)
+            self.feature = self.feature.reshape((1,-1))
+            y = self.model.predict(self.feature) 
 
-def ml_loop(side: str):
-
-    # === Here is the execution order of the loop === #
-    # 1. Put the initialization code here.
-    ball_served = False
-    filename = path.join(path.dirname(__file__),
-                         "random_forest.pickle")
-    with open(filename, 'rb') as file:
-        clf = pickle.load(file)
-    # 2. Inform the game process that ml process is ready before start the loop.
-    comm.ml_ready()
-
-    s = [93, 93]
-
-    def get_direction(ball_x, ball_y, ball_pre_x, ball_pre_y):
-        VectorX = ball_x - ball_pre_x
-        VectorY = ball_y - ball_pre_y
-        if(VectorX > 0 and VectorY > 0):
-            return 0
-        elif(VectorX > 0 and VectorY < 0):
-            return 1
-        elif(VectorX < 0 and VectorY > 0):
-            return 2
-        elif(VectorX < 0 and VectorY < 0):
-            return 3
-        else:
-            return 4
-
-    # 3. Start an endless loop.
-    while True:
-        # 3.1. Receive the scene information sent from the game process.
-        scene_info = comm.recv_from_game()
-        #Data = [Commands, Balls, Ball_speed, PlatformPos, Blocker, vectors, direction]
-        #Feature = [Balls, Ball_speed, PlatformPos, Blocker, direction]
-        feature = []
-        for i in range(0, 2):
-            # feature.append(scene_info["ball"][i])
-            # feature.append(scene_info["ball_speed"][i])
-            feature.append(scene_info["platform_1P"][i])
-            feature.append(scene_info["blocker"][i])
-        feature.append(feature[0] - s[0])
-        feature.append(feature[1] - s[1])
-        feature.append(get_direction(feature[0], feature[1], s[0], s[1]))
-        s = [feature[0], feature[1]]
-        # print(feature)
-        feature = np.array(feature)
-        feature = feature.reshape((-2, 7))
-
-        # 3.2. If the game is over or passed, the game process will reset
-        #      the scene and wait for ml process doing resetting job.
-        if scene_info["status"] != "GAME_ALIVE":
-            # Do some stuff if needed
-            ball_served = False
-
-            # 3.2.1. Inform the game process that ml process is ready
-            comm.ml_ready()
-            continue
-
-        # 3.3. Put the code here to handle the scene information
-
-        # 3.4. Send the instruction for this frame to the game process
-        if not ball_served:
-            comm.send_to_game(
-                {"frame": scene_info["frame"], "command": "SERVE_TO_LEFT"})
-            ball_served = True
-        else:
-            y = clf.predict(feature)
             if y == 0:
-                comm.send_to_game(
-                    {"frame": scene_info["frame"], "command": "NONE"})
-                print('NONE')
-            elif y == 1:
-                comm.send_to_game(
-                    {"frame": scene_info["frame"], "command": "MOVE_RIGHT"})
-                print('LEFT')
-            elif y == 2:
-                comm.send_to_game(
-                    {"frame": scene_info["frame"], "command": "MOVE_LEFT"})
-                print('RIGHT')
+                return ["SPEED"]
+            if y == 1:
+                return ["SPEED", "MOVE_LEFT"]
+            if y == 2:
+                return ["SPEED", "MOVE_RIGHT"]
+            if y == 3:
+                return ["BRAKE"]
+            if y == 4:
+                return ["BRAKE", "MOVE_LEFT"]
+            if y == 5:
+                return ["BRAKE", "MOVE_RIGHT"]
+            if y == 6:
+                return ["LEFT"]
+            if y == 7:
+                return ["RIGHT"]
+        
+        return check_grid()
+
+    def reset(self):
+        """
+        Reset the status
+        """
+        pass
